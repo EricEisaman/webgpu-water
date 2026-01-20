@@ -23,6 +23,7 @@
  */
 
 import { mat4, vec3 } from 'wgpu-matrix';
+import GUI from 'lil-gui';
 import { Pool } from './pool';
 import { Sphere } from './sphere';
 import { Water } from './water';
@@ -213,6 +214,18 @@ async function init(): Promise<void> {
   /** Whether simulation is paused */
   let paused = false;
 
+  // --- GUI ---
+  const gui = new GUI({ title: 'Settings' });
+  gui.close(); // Collapse by default
+  
+  const settings = {
+    gravity: useSpherePhysics
+  };
+
+  const gravityController = gui.add(settings, 'gravity').name('Gravity').onChange((v: boolean) => {
+    useSpherePhysics = v;
+  });
+
   // Initialize sphere position
   sphere.update(center.toArray(), radius);
 
@@ -229,7 +242,11 @@ async function init(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     const key = e.key.toUpperCase();
     keys[key] = true;
-    if (key === 'G') useSpherePhysics = !useSpherePhysics; // Toggle gravity
+    if (key === 'G') {
+      useSpherePhysics = !useSpherePhysics; // Toggle gravity
+      settings.gravity = useSpherePhysics;
+      gravityController.updateDisplay();
+    }
     else if (key === ' ') paused = !paused;                // Toggle pause
   });
 
