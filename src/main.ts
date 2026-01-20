@@ -220,9 +220,14 @@ async function init(): Promise<void> {
   
   const settings = {
     gravity: useSpherePhysics,
-    followCamera: false
+    followCamera: false,
+    showSphere: true
   };
 
+  gui.add(settings, 'showSphere').name('Render Sphere').onChange((v: boolean) => {
+    // Update shadow flags when sphere visibility changes: rim=1, sphere=v, ao=1
+    device.queue.writeBuffer(shadowUniformBuffer, 0, new Float32Array([1.0, v ? 1.0 : 0.0, 1.0, 0.0]));
+  });
   const gravityController = gui.add(settings, 'gravity').name('Toggle Gravity').onChange((v: boolean) => {
     useSpherePhysics = v;
   });
@@ -290,8 +295,8 @@ async function init(): Promise<void> {
     const tracer = new Raytracer(viewMatrix, projectionMatrix, getViewport());
     const ray = tracer.getRayForPixel(x * ratio, y * ratio);
 
-    // Check if clicking on sphere
-    const sphereHit = Raytracer.hitTestSphere(tracer.eye, ray, center, radius);
+    // Check if clicking on sphere (only if visible)
+    const sphereHit = settings.showSphere ? Raytracer.hitTestSphere(tracer.eye, ray, center, radius) : null;
     if (sphereHit) {
       mode = InteractionMode.MoveSphere;
       prevHit = sphereHit.hit;
@@ -489,8 +494,10 @@ async function init(): Promise<void> {
         sphere.update(center.toArray(), radius);
       }
 
-      // Update water displacement from sphere movement
-      water.moveSphere(oldCenter.toArray(), center.toArray(), radius);
+      if (settings.showSphere) {
+        // Update water displacement from sphere movement
+        water.moveSphere(oldCenter.toArray(), center.toArray(), radius);
+      }
       oldCenter = center.clone();
 
       // Run water simulation (twice per frame for smoother waves)
@@ -523,7 +530,9 @@ async function init(): Promise<void> {
 
     // Render scene objects
     pool.render(passEncoder, water.textureA, water.sampler, water.causticsTexture);
-    sphere.render(passEncoder, water.textureA, water.sampler, water.causticsTexture);
+    if (settings.showSphere) {
+      sphere.render(passEncoder, water.textureA, water.sampler, water.causticsTexture);
+    }
     water.renderSurface(passEncoder);
 
     passEncoder.end();

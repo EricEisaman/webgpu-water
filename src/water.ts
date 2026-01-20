@@ -629,6 +629,14 @@ export class Water {
         }
         @binding(2) @group(0) var<uniform> sphere : SphereUniforms;
 
+        // Shadow toggle flags
+        struct ShadowUniforms {
+            rim : f32,
+            sphere : f32,
+            ao : f32,
+        }
+        @binding(10) @group(0) var<uniform> shadows : ShadowUniforms;
+
         // Textures for rendering
         @binding(3) @group(0) var tileSampler : sampler;
         @binding(4) @group(0) var tileTexture : texture_2d<f32>;
@@ -736,7 +744,7 @@ export class Water {
             // Ambient occlusion
             var scale = 0.5;
             scale /= length(point);
-            scale *= 1.0 - 0.9 / pow(length(point - sphere.center) / sphere.radius, 4.0);
+            scale *= mix(1.0, 1.0 - 0.9 / pow(length(point - sphere.center) / sphere.radius, 4.0), shadows.sphere);
 
             // Lighting with caustics or rim shadow
             let refractedLight = -refract(-light.direction, vec3f(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
@@ -761,8 +769,12 @@ export class Water {
             var color : vec3f;
             let poolHeight = 1.0;
 
-            // Check sphere intersection first
-            let q = intersectSphere(origin, ray, sphere.center, sphere.radius);
+            // Check sphere intersection first (only if sphere is enabled)
+            var q = 1.0e6;
+            if (shadows.sphere > 0.5) {
+                q = intersectSphere(origin, ray, sphere.center, sphere.radius);
+            }
+            
             if (q < 1.0e6) {
                 color = getSphereColor(origin + ray * q, IOR_AIR, IOR_WATER);
             } else if (ray.y < 0.0) {
@@ -852,6 +864,7 @@ export class Water {
         { binding: 7, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
         { binding: 8, visibility: GPUShaderStage.FRAGMENT, texture: { viewDimension: 'cube' } },
         { binding: 9, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+        { binding: 10, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
       ],
     });
 
@@ -936,7 +949,8 @@ export class Water {
         { binding: 6, resource: this.textureA.createView() },
         { binding: 7, resource: this.skySampler },
         { binding: 8, resource: this.skyTexture.createView({ dimension: 'cube' }) },
-        { binding: 9, resource: this.causticsTexture.createView() }
+        { binding: 9, resource: this.causticsTexture.createView() },
+        { binding: 10, resource: { buffer: this.shadowUniformBuffer } }
       ]
     });
 

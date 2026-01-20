@@ -294,16 +294,12 @@ export class Pool {
           if (abs(point.x) > 0.999) { normal = vec3f(-point.x, 0.0, 0.0); }
           else if (abs(point.z) > 0.999) { normal = vec3f(0.0, 0.0, -point.z); }
 
-          var scale = 0.5; // Base ambient light level
+            // Ambient occlusion
+            var scale = 0.5;
+            scale /= length(point);
+            scale *= mix(1.0, 1.0 - 0.9 / pow(length(point - sphere.center) / sphere.radius, 4.0), shadows.sphere);
 
-          // Pool ambient occlusion - darker in corners
-          let poolAO = 1.0 / length(point);
-          scale *= mix(1.0, poolAO, shadows.ao);
-
-          // Sphere ambient occlusion - darker near sphere
-          let dist = length(point - sphere.center) / sphere.radius;
-          let sphereAO = 1.0 - 0.9 / pow(max(0.0, dist), 4.0);
-          scale *= mix(1.0, sphereAO, shadows.sphere);
+            // Lighting with caustics or rim shadow
 
           // Calculate refracted light direction (Snell's law)
           let refractedLight = -refract(-light.direction, vec3f(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
