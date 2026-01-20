@@ -377,7 +377,8 @@ async function init(): Promise<void> {
    * Handles window resize - updates canvas size and recreates depth texture.
    */
   function onResize(): void {
-    const width = window.innerWidth - help.clientWidth - 20;
+    const isMobile = window.matchMedia('(max-width: 600px)').matches;
+    const width = isMobile ? window.innerWidth : window.innerWidth - help.clientWidth - 20;
     const height = window.innerHeight;
     canvas.width = Math.floor(width * ratio);
     canvas.height = Math.floor(height * ratio);
@@ -396,6 +397,14 @@ async function init(): Promise<void> {
   }
 
   window.addEventListener('resize', onResize);
+
+  const helpToggle = document.getElementById('help-toggle')!;
+  helpToggle.addEventListener('click', () => {
+    help.classList.toggle('collapsed');
+    helpToggle.textContent = help.classList.contains('collapsed') ? 'menu' : 'chevron_right';
+    onResize();
+  });
+
   document.getElementById('loading')!.innerHTML = '';
   onResize();
 
