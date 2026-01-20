@@ -431,6 +431,19 @@ async function init(): Promise<void> {
     onResize();
   });
 
+  // Collapse help panel when clicking outside of it (mobile only)
+  window.addEventListener('pointerdown', (e) => {
+    const isMobile = window.matchMedia('(max-width: 600px)').matches;
+    if (isMobile && !help.classList.contains('collapsed')) {
+      const target = e.target as HTMLElement;
+      if (!help.contains(target) && !helpToggle.contains(target)) {
+        help.classList.add('collapsed');
+        helpToggle.textContent = 'menu';
+        onResize();
+      }
+    }
+  });
+
   document.getElementById('loading')!.innerHTML = '';
   onResize();
 
