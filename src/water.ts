@@ -18,6 +18,18 @@
 
 import type { PipelineConfig } from './types';
 
+// Import shader modules
+import fullscreenVertShader from './shaders/water/fullscreen.vert.wgsl?raw';
+import dropFragShader from './shaders/water/drop.frag.wgsl?raw';
+import updateFragShader from './shaders/water/update.frag.wgsl?raw';
+import normalFragShader from './shaders/water/normal.frag.wgsl?raw';
+import sphereFragShader from './shaders/water/sphere.frag.wgsl?raw';
+import surfaceVertShader from './shaders/water/surface.vert.wgsl';
+import surfaceAboveFragShader from './shaders/water/surface-above.frag.wgsl';
+import surfaceUnderFragShader from './shaders/water/surface-under.frag.wgsl';
+import causticsVertShader from './shaders/water/caustics.vert.wgsl';
+import causticsFragShader from './shaders/water/caustics.frag.wgsl';
+
 /**
  * Main water simulation and rendering class.
  *
@@ -227,166 +239,25 @@ export class Water {
   private createPipelines(): void {
     const format: GPUTextureFormat = this.device.features.has('float32-filterable') ? 'rgba32float' : 'rgba16float';
 
-    // Common fullscreen quad vertex shader
-    // Generates 6 vertices for 2 triangles covering the screen
-    const fullscreenQuadVS = `
-      struct VertexOutput {
-        @builtin(position) position : vec4f,
-        @location(0) uv : vec2f,
-      }
-
-      @vertex
-      fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
-        var pos = array<vec2f, 6>(
-          vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
-          vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0)
-        );
-        var output : VertexOutput;
-        output.position = vec4f(pos[vertexIndex], 0.0, 1.0);
-        output.uv = vec2f((pos[vertexIndex].x + 1.0) * 0.5, (1.0 - pos[vertexIndex].y) * 0.5);
-        return output;
-      }
-    `;
-
     // --- Drop Pipeline ---
     // Adds circular ripples to the water at a given position
     // Uses cosine falloff for smooth drop shape
-    this.dropPipeline = this.createPipeline('Drop', fullscreenQuadVS, `
-      @group(0) @binding(0) var waterTexture : texture_2d<f32>;
-      @group(0) @binding(1) var waterSampler : sampler;
-
-      struct DropUniforms {
-        center : vec2f,    // Drop position in [-1, 1] range
-        radius : f32,      // Drop radius
-        strength : f32,    // Drop intensity (positive or negative)
-      }
-      @group(0) @binding(2) var<uniform> u : DropUniforms;
-
-      @fragment
-      fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
-        var info = textureSample(waterTexture, waterSampler, uv);
-
-        // Calculate distance from drop center with cosine falloff
-        let drop = max(0.0, 1.0 - length(u.center * 0.5 + 0.5 - uv) / u.radius);
-        let dropVal = 0.5 - cos(drop * 3.14159265) * 0.5;
-
-        // Add drop height to water surface
-        info.r += dropVal * u.strength;
-
-        return info;
-      }
-    `, 32, format);
+    this.dropPipeline = this.createPipeline('Drop', fullscreenVertShader, dropFragShader, 32, format);
 
     // --- Update Pipeline ---
     // Propagates waves using a simple finite difference scheme
     // Height moves toward neighbor average, velocity carries momentum
-    this.updatePipeline = this.createPipeline('Update', fullscreenQuadVS, `
-      @group(0) @binding(0) var waterTexture : texture_2d<f32>;
-      @group(0) @binding(1) var waterSampler : sampler;
-
-      struct UpdateUniforms {
-        delta : vec2f,  // Texel size (1/width, 1/height)
-      }
-      @group(0) @binding(2) var<uniform> u : UpdateUniforms;
-
-      @fragment
-      fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
-        var info = textureSample(waterTexture, waterSampler, uv);
-
-        // Sample neighboring heights
-        let dx = vec2f(u.delta.x, 0.0);
-        let dy = vec2f(0.0, u.delta.y);
-
-        let average = (
-          textureSample(waterTexture, waterSampler, uv - dx).r +
-          textureSample(waterTexture, waterSampler, uv - dy).r +
-          textureSample(waterTexture, waterSampler, uv + dx).r +
-          textureSample(waterTexture, waterSampler, uv + dy).r
-        ) * 0.25;
-
-        // Update velocity based on difference from average
-        info.g += (average - info.r) * 2.0;
-        // Apply damping to prevent perpetual waves
-        info.g *= 0.995;
-        // Update height based on velocity
-        info.r += info.g;
-
-        return info;
-      }
-    `, 16, format);
+    this.updatePipeline = this.createPipeline('Update', fullscreenVertShader, updateFragShader, 16, format);
 
     // --- Normal Pipeline ---
     // Computes surface normals from height differences
     // Normals are stored in BA channels for lighting calculations
-    this.normalPipeline = this.createPipeline('Normal', fullscreenQuadVS, `
-      @group(0) @binding(0) var waterTexture : texture_2d<f32>;
-      @group(0) @binding(1) var waterSampler : sampler;
-
-      struct NormalUniforms {
-        delta : vec2f,  // Texel size (1/width, 1/height)
-      }
-      @group(0) @binding(2) var<uniform> u : NormalUniforms;
-
-      @fragment
-      fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
-        var info = textureSample(waterTexture, waterSampler, uv);
-
-        // Sample neighboring heights to compute gradient
-        let val_dx = textureSample(waterTexture, waterSampler, vec2f(uv.x + u.delta.x, uv.y)).r;
-        let val_dy = textureSample(waterTexture, waterSampler, vec2f(uv.x, uv.y + u.delta.y)).r;
-
-        // Create tangent vectors from height differences
-        let dx = vec3f(u.delta.x, val_dx - info.r, 0.0);
-        let dy = vec3f(0.0, val_dy - info.r, u.delta.y);
-
-        // Normal is cross product of tangent vectors
-        let normal = normalize(cross(dy, dx));
-        info.b = normal.x;  // Store X component
-        info.a = normal.z;  // Store Z component
-
-        return info;
-      }
-    `, 16, format);
+    this.normalPipeline = this.createPipeline('Normal', fullscreenVertShader, normalFragShader, 16, format);
 
     // --- Sphere Interaction Pipeline ---
     // Displaces water based on sphere movement
     // Adds volume where sphere leaves, removes where it enters
-    this.spherePipeline = this.createPipeline('Sphere', fullscreenQuadVS, `
-      @group(0) @binding(0) var waterTexture : texture_2d<f32>;
-      @group(0) @binding(1) var waterSampler : sampler;
-
-      struct SphereUniforms {
-        oldCenter : vec3f,  // Previous sphere position
-        radius : f32,       // Sphere radius
-        newCenter : vec3f,  // Current sphere position
-        padding : f32,      // Alignment padding
-      }
-      @group(0) @binding(2) var<uniform> u : SphereUniforms;
-
-      // Calculates the volume of sphere intersecting the water at a UV position
-      fn volumeInSphere(center : vec3f, uv : vec2f, radius : f32) -> f32 {
-        let p = vec3f(uv.x * 2.0 - 1.0, 0.0, uv.y * 2.0 - 1.0);
-        let dist = length(p - center);
-        let t = dist / radius;
-
-        // Gaussian-like falloff for smooth interaction
-        let dy = exp(-pow(t * 1.5, 6.0));
-        let ymin = min(0.0, center.y - dy);
-        let ymax = min(max(0.0, center.y + dy), ymin + 2.0 * dy);
-        return (ymax - ymin) * 0.1;
-      }
-
-      @fragment
-      fn fs_main(@location(0) uv : vec2f) -> @location(0) vec4f {
-        var info = textureSample(waterTexture, waterSampler, uv);
-
-        // Water rises where sphere was, falls where sphere is now
-        info.r += volumeInSphere(u.oldCenter, uv, u.radius);
-        info.r -= volumeInSphere(u.newCenter, uv, u.radius);
-
-        return info;
-      }
-    `, 32, format);
+    this.spherePipeline = this.createPipeline('Sphere', fullscreenVertShader, sphereFragShader, 32, format);
   }
 
   /**
@@ -605,9 +476,26 @@ export class Water {
    */
   private createSurfacePipeline(): void {
     /**
-     * Generates shader code for water surface rendering.
-     * The isUnderwater parameter controls the perspective and Fresnel calculations.
+     * Creates vertex shader module.
      */
+    const createVertexShaderModule = (label: string, vertCode: string): GPUShaderModule => {
+      return this.device.createShaderModule({
+        label: `${label} Vertex Shader`,
+        code: vertCode
+      });
+    };
+
+    /**
+     * Creates fragment shader module.
+     */
+    const createFragmentShaderModule = (label: string, fragCode: string): GPUShaderModule => {
+      return this.device.createShaderModule({
+        label: `${label} Fragment Shader`,
+        code: fragCode
+      });
+    };
+
+    // Temporarily keep the old function signature for compatibility (unused now)
     const shaderCode = (isUnderwater: boolean): string => `
         // Common camera uniforms
         struct CommonUniforms {
@@ -876,17 +764,15 @@ export class Water {
     /**
      * Helper to create a surface pipeline with specific settings.
      */
-    const createSurfacePipeline = (label: string, isUnderwater: boolean, cullMode: GPUCullMode): GPURenderPipeline => {
-      const shaderModule = this.device.createShaderModule({
-        label: `${label} Shader`,
-        code: shaderCode(isUnderwater),
-      });
+    const createSurfacePipeline = (label: string, vertShader: string, fragShader: string, cullMode: GPUCullMode): GPURenderPipeline => {
+      const vertexShaderModule = createVertexShaderModule(label, vertShader);
+      const fragmentShaderModule = createFragmentShaderModule(label, fragShader);
 
       return this.device.createRenderPipeline({
         label,
         layout: surfacePipelineLayout,
         vertex: {
-          module: shaderModule,
+          module: vertexShaderModule,
           entryPoint: 'vs_main',
           buffers: [{
             arrayStride: 3 * 4,
@@ -898,7 +784,7 @@ export class Water {
           }]
         },
         fragment: {
-          module: shaderModule,
+          module: fragmentShaderModule,
           entryPoint: 'fs_main',
           targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }]
         },
@@ -917,12 +803,14 @@ export class Water {
     // Create both pipelines
     this.surfacePipelineAbove = createSurfacePipeline(
       'Water Surface Above Pipeline',
-      false,
+      surfaceVertShader,
+      surfaceAboveFragShader,
       'front' // Cull front faces (see back face = top of water)
     );
     this.surfacePipelineUnder = createSurfacePipeline(
       'Water Surface Under Pipeline',
-      true,
+      surfaceVertShader,
+      surfaceUnderFragShader,
       'back' // Cull back faces (see front face = bottom of water)
     );
   }
@@ -983,146 +871,22 @@ export class Water {
    * Uses additive blending to accumulate light from multiple rays.
    */
   private createCausticsPipeline(): void {
-    const shaderModule = this.device.createShaderModule({
-      label: 'Caustics Shader',
-      code: `
-        // Light direction for refraction calculation
-        struct LightUniforms {
-           direction : vec3f,
-        }
-        @binding(0) @group(0) var<uniform> light : LightUniforms;
+    // Create separate shader modules for vertex and fragment stages
+    const vertexShaderModule = this.device.createShaderModule({
+      label: 'Caustics Vertex Shader',
+      code: causticsVertShader
+    });
 
-        // Sphere for shadow calculation
-        struct SphereUniforms {
-          center : vec3f,
-          radius : f32,
-        }
-        @binding(1) @group(0) var<uniform> sphere : SphereUniforms;
-
-        // Shadow toggle flags
-        struct ShadowUniforms {
-            rim : f32,
-            sphere : f32,
-            ao : f32,
-        }
-        @binding(4) @group(0) var<uniform> shadows : ShadowUniforms;
-
-        // Water simulation texture
-        @binding(2) @group(0) var waterSampler : sampler;
-        @binding(3) @group(0) var waterTexture : texture_2d<f32>;
-
-        struct VertexOutput {
-          @builtin(position) position : vec4f,
-          @location(0) oldPos : vec3f,  // Where ray would hit with flat water
-          @location(1) newPos : vec3f,  // Where ray hits with displaced water
-          @location(2) ray : vec3f,     // Refracted ray direction
-        }
-
-        // Ray-box intersection
-        fn intersectCube(origin: vec3f, ray: vec3f, cubeMin: vec3f, cubeMax: vec3f) -> vec2f {
-          let tMin = (cubeMin - origin) / ray;
-          let tMax = (cubeMax - origin) / ray;
-          let t1 = min(tMin, tMax);
-          let t2 = max(tMin, tMax);
-          let tNear = max(max(t1.x, t1.y), t1.z);
-          let tFar = min(min(t2.x, t2.y), t2.z);
-          return vec2f(tNear, tFar);
-        }
-
-        // Projects ray from water surface to pool floor
-        fn project(origin: vec3f, ray: vec3f, refractedLight: vec3f) -> vec3f {
-            let poolHeight = 1.0;
-            var point = origin;
-
-            // First find where ray exits pool volume
-            let tcube = intersectCube(origin, ray, vec3f(-1.0, -poolHeight, -1.0), vec3f(1.0, 2.0, 1.0));
-            point += ray * tcube.y;
-
-            // Then project down to floor plane (y = -1)
-            let tplane = (-point.y - 1.0) / refractedLight.y;
-            return point + refractedLight * tplane;
-        }
-
-        @vertex
-        fn vs_main(@location(0) position : vec3f) -> VertexOutput {
-          var output : VertexOutput;
-          let uv = position.xy * 0.5 + 0.5;
-
-          // Sample water height and normal
-          let info = textureSampleLevel(waterTexture, waterSampler, uv, 0.0);
-
-          // Reconstruct normal (scaled down for stability)
-          let ba = info.ba * 0.5;
-          let normal = vec3f(ba.x, sqrt(max(0.0, 1.0 - dot(ba, ba))), ba.y);
-
-          // Calculate refracted light directions
-          let IOR_AIR = 1.0;
-          let IOR_WATER = 1.333;
-          let lightDir = normalize(light.direction);
-
-          // Flat water refraction (reference)
-          let refractedLight = refract(-lightDir, vec3f(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
-          // Displaced water refraction (actual)
-          let ray = refract(-lightDir, normal, IOR_AIR / IOR_WATER);
-
-          // Water surface position
-          let pos = vec3f(position.x, 0.0, position.y);
-
-          // Project both rays to pool floor
-          output.oldPos = project(pos, refractedLight, refractedLight);
-          output.newPos = project(pos + vec3f(0.0, info.r, 0.0), ray, refractedLight);
-          output.ray = ray;
-
-          // Position in caustics texture space
-          let projectedPos = 0.75 * (output.newPos.xz - output.newPos.y * refractedLight.xz / refractedLight.y);
-          output.position = vec4f(projectedPos.x, -projectedPos.y, 0.0, 1.0);
-
-          return output;
-        }
-
-        @fragment
-        fn fs_main(@location(0) oldPos : vec3f, @location(1) newPos : vec3f, @location(2) ray : vec3f) -> @location(0) vec4f {
-            // Calculate intensity from area ratio using screen-space derivatives
-            // Light converges where triangles shrink, diverges where they grow
-            let oldArea = length(dpdx(oldPos)) * length(dpdy(oldPos));
-            let newArea = length(dpdx(newPos)) * length(dpdy(newPos));
-
-            var intensity = oldArea / newArea * 0.2;
-
-            // Calculate sphere shadow
-            let IOR_AIR = 1.0;
-            let IOR_WATER = 1.333;
-            let lightDir = normalize(light.direction);
-            let refractedLight = refract(-lightDir, vec3f(0.0, 1.0, 0.0), IOR_AIR / IOR_WATER);
-
-            // Sphere shadow using distance to ray
-            let dir = (sphere.center - newPos) / sphere.radius;
-            let area = cross(dir, refractedLight);
-            var shadow = dot(area, area);
-            let dist = dot(dir, -refractedLight);
-
-            shadow = 1.0 + (shadow - 1.0) / (0.05 + dist * 0.025);
-            shadow = clamp(1.0 / (1.0 + exp(-shadow)), 0.0, 1.0);
-            shadow = mix(1.0, shadow, clamp(dist * 2.0, 0.0, 1.0));
-            shadow = mix(1.0, shadow, shadows.sphere);
-
-            // Rim shadow at pool edges
-            let poolHeight = 1.0;
-            let t = intersectCube(newPos, -refractedLight, vec3f(-1.0, -poolHeight, -1.0), vec3f(1.0, 2.0, 1.0));
-            let rimShadow = 1.0 / (1.0 + exp(-200.0 / (1.0 + 10.0 * (t.y - t.x)) * (newPos.y - refractedLight.y * t.y - 2.0 / 12.0)));
-            intensity *= mix(1.0, rimShadow, shadows.rim);
-
-            // R = caustic intensity, G = sphere shadow factor
-            return vec4f(intensity, shadow, 0.0, 1.0);
-        }
-        `
+    const fragmentShaderModule = this.device.createShaderModule({
+      label: 'Caustics Fragment Shader',
+      code: causticsFragShader
     });
 
     this.causticsPipeline = this.device.createRenderPipeline({
       label: 'Caustics Pipeline',
       layout: 'auto',
       vertex: {
-        module: shaderModule,
+        module: vertexShaderModule,
         entryPoint: 'vs_main',
         buffers: [{
           arrayStride: 3 * 4,
@@ -1134,7 +898,7 @@ export class Water {
         }]
       },
       fragment: {
-        module: shaderModule,
+        module: fragmentShaderModule,
         entryPoint: 'fs_main',
         targets: [{
           format: 'rgba8unorm',
