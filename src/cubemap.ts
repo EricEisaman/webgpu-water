@@ -54,7 +54,11 @@ export class Cubemap {
 
     // Load all six face images in parallel
     const images = await Promise.all(
-      faces.map(face => fetch(urls[face]).then(r => r.blob()).then(b => createImageBitmap(b)))
+      faces.map((face) =>
+        fetch(urls[face])
+          .then((r) => r.blob())
+          .then((b) => createImageBitmap(b))
+      )
     );
 
     // All faces must be the same size; use first image dimensions
@@ -64,14 +68,17 @@ export class Cubemap {
     const texture = this.device.createTexture({
       size: [width, height, 6],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
     // Copy each face image to its corresponding texture layer
     images.forEach((image, i) => {
       this.device.queue.copyExternalImageToTexture(
-        { source: image, flipY: true },  // Flip Y to match WebGPU coordinate system
-        { texture, origin: [0, 0, i] },   // Layer index determines cube face
+        { source: image, flipY: true }, // Flip Y to match WebGPU coordinate system
+        { texture, origin: [0, 0, i] }, // Layer index determines cube face
         { width, height }
       );
     });

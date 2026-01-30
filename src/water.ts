@@ -237,27 +237,53 @@ export class Water {
    * then textures are swapped.
    */
   private createPipelines(): void {
-    const format: GPUTextureFormat = this.device.features.has('float32-filterable') ? 'rgba32float' : 'rgba16float';
+    const format: GPUTextureFormat = this.device.features.has('float32-filterable')
+      ? 'rgba32float'
+      : 'rgba16float';
 
     // --- Drop Pipeline ---
     // Adds circular ripples to the water at a given position
     // Uses cosine falloff for smooth drop shape
-    this.dropPipeline = this.createPipeline('Drop', fullscreenVertShader, dropFragShader, 32, format);
+    this.dropPipeline = this.createPipeline(
+      'Drop',
+      fullscreenVertShader,
+      dropFragShader,
+      32,
+      format
+    );
 
     // --- Update Pipeline ---
     // Propagates waves using a simple finite difference scheme
     // Height moves toward neighbor average, velocity carries momentum
-    this.updatePipeline = this.createPipeline('Update', fullscreenVertShader, updateFragShader, 16, format);
+    this.updatePipeline = this.createPipeline(
+      'Update',
+      fullscreenVertShader,
+      updateFragShader,
+      16,
+      format
+    );
 
     // --- Normal Pipeline ---
     // Computes surface normals from height differences
     // Normals are stored in BA channels for lighting calculations
-    this.normalPipeline = this.createPipeline('Normal', fullscreenVertShader, normalFragShader, 16, format);
+    this.normalPipeline = this.createPipeline(
+      'Normal',
+      fullscreenVertShader,
+      normalFragShader,
+      16,
+      format
+    );
 
     // --- Sphere Interaction Pipeline ---
     // Displaces water based on sphere movement
     // Adds volume where sphere leaves, removes where it enters
-    this.spherePipeline = this.createPipeline('Sphere', fullscreenVertShader, sphereFragShader, 32, format);
+    this.spherePipeline = this.createPipeline(
+      'Sphere',
+      fullscreenVertShader,
+      sphereFragShader,
+      32,
+      format
+    );
   }
 
   /**
@@ -270,10 +296,16 @@ export class Water {
    * @param format - Texture format for output
    * @returns PipelineConfig with pipeline and uniform buffer
    */
-  private createPipeline(label: string, vsCode: string, fsCode: string, uniformSize: number, format: GPUTextureFormat): PipelineConfig {
+  private createPipeline(
+    label: string,
+    vsCode: string,
+    fsCode: string,
+    uniformSize: number,
+    format: GPUTextureFormat
+  ): PipelineConfig {
     const module = this.device.createShaderModule({
       label: label + ' Module',
-      code: vsCode + fsCode
+      code: vsCode + fsCode,
     });
 
     const pipeline = this.device.createRenderPipeline({
@@ -286,11 +318,11 @@ export class Water {
       fragment: {
         module: module,
         entryPoint: 'fs_main',
-        targets: [{ format: format }]
+        targets: [{ format: format }],
       },
       primitive: {
         topology: 'triangle-list',
-      }
+      },
     });
 
     return {
@@ -299,7 +331,7 @@ export class Water {
       uniformBuffer: this.device.createBuffer({
         size: uniformSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      })
+      }),
     };
   }
 
@@ -322,19 +354,21 @@ export class Water {
       entries: [
         { binding: 0, resource: this.textureA.createView() },
         { binding: 1, resource: this.sampler },
-        { binding: 2, resource: { buffer: pipelineObj.uniformBuffer } }
-      ]
+        { binding: 2, resource: { buffer: pipelineObj.uniformBuffer } },
+      ],
     });
 
     // Execute render pass
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: this.textureB.createView(),
-        loadOp: 'clear',
-        storeOp: 'store',
-        clearValue: { r: 0, g: 0, b: 0, a: 0 }
-      }]
+      colorAttachments: [
+        {
+          view: this.textureB.createView(),
+          loadOp: 'clear',
+          storeOp: 'store',
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+        },
+      ],
     });
 
     pass.setPipeline(pipelineObj.pipeline);
@@ -360,7 +394,8 @@ export class Water {
    */
   addDrop(x: number, y: number, radius: number, strength: number): void {
     const data = new Float32Array(4);
-    data[0] = x; data[1] = y;
+    data[0] = x;
+    data[1] = y;
     data[2] = radius;
     data[3] = strength;
     this.runPipeline(this.dropPipeline, data);
@@ -399,9 +434,13 @@ export class Water {
    */
   moveSphere(oldCenter: number[], newCenter: number[], radius: number): void {
     const data = new Float32Array(8);
-    data[0] = oldCenter[0]; data[1] = oldCenter[1]; data[2] = oldCenter[2];
+    data[0] = oldCenter[0];
+    data[1] = oldCenter[1];
+    data[2] = oldCenter[2];
     data[3] = radius;
-    data[4] = newCenter[0]; data[5] = newCenter[1]; data[6] = newCenter[2];
+    data[4] = newCenter[0];
+    data[5] = newCenter[1];
+    data[6] = newCenter[2];
     data[7] = 0; // padding
     this.runPipeline(this.spherePipeline, data);
   }
@@ -481,7 +520,7 @@ export class Water {
     const createVertexShaderModule = (label: string, vertCode: string): GPUShaderModule => {
       return this.device.createShaderModule({
         label: `${label} Vertex Shader`,
-        code: vertCode
+        code: vertCode,
       });
     };
 
@@ -491,7 +530,7 @@ export class Water {
     const createFragmentShaderModule = (label: string, fragCode: string): GPUShaderModule => {
       return this.device.createShaderModule({
         label: `${label} Fragment Shader`,
-        code: fragCode
+        code: fragCode,
       });
     };
 
@@ -499,7 +538,11 @@ export class Water {
     this.surfaceBindGroupLayout = this.device.createBindGroupLayout({
       label: 'Water Surface BindGroupLayout',
       entries: [
-        { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          buffer: { type: 'uniform' },
+        },
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
         { binding: 3, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
@@ -521,7 +564,12 @@ export class Water {
     /**
      * Helper to create a surface pipeline with specific settings.
      */
-    const createSurfacePipeline = (label: string, vertShader: string, fragShader: string, cullMode: GPUCullMode): GPURenderPipeline => {
+    const createSurfacePipeline = (
+      label: string,
+      vertShader: string,
+      fragShader: string,
+      cullMode: GPUCullMode
+    ): GPURenderPipeline => {
       const vertexShaderModule = createVertexShaderModule(label, vertShader);
       const fragmentShaderModule = createFragmentShaderModule(label, fragShader);
 
@@ -531,19 +579,23 @@ export class Water {
         vertex: {
           module: vertexShaderModule,
           entryPoint: 'vs_main',
-          buffers: [{
-            arrayStride: 3 * 4,
-            attributes: [{
-              shaderLocation: 0,
-              offset: 0,
-              format: 'float32x3'
-            }]
-          }]
+          buffers: [
+            {
+              arrayStride: 3 * 4,
+              attributes: [
+                {
+                  shaderLocation: 0,
+                  offset: 0,
+                  format: 'float32x3',
+                },
+              ],
+            },
+          ],
         },
         fragment: {
           module: fragmentShaderModule,
           entryPoint: 'fs_main',
-          targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }]
+          targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }],
         },
         primitive: {
           topology: 'triangle-list',
@@ -553,7 +605,7 @@ export class Water {
           depthWriteEnabled: true,
           depthCompare: 'less',
           format: 'depth24plus',
-        }
+        },
       });
     };
 
@@ -595,8 +647,8 @@ export class Water {
         { binding: 7, resource: this.skySampler },
         { binding: 8, resource: this.skyTexture.createView({ dimension: 'cube' }) },
         { binding: 9, resource: this.causticsTexture.createView() },
-        { binding: 10, resource: { buffer: this.shadowUniformBuffer } }
-      ]
+        { binding: 10, resource: { buffer: this.shadowUniformBuffer } },
+      ],
     });
 
     // Render water surface from above
@@ -631,12 +683,12 @@ export class Water {
     // Create separate shader modules for vertex and fragment stages
     const vertexShaderModule = this.device.createShaderModule({
       label: 'Caustics Vertex Shader',
-      code: causticsVertShader
+      code: causticsVertShader,
     });
 
     const fragmentShaderModule = this.device.createShaderModule({
       label: 'Caustics Fragment Shader',
-      code: causticsFragShader
+      code: causticsFragShader,
     });
 
     this.causticsPipeline = this.device.createRenderPipeline({
@@ -645,38 +697,44 @@ export class Water {
       vertex: {
         module: vertexShaderModule,
         entryPoint: 'vs_main',
-        buffers: [{
-          arrayStride: 3 * 4,
-          attributes: [{
-            shaderLocation: 0,
-            offset: 0,
-            format: 'float32x3'
-          }]
-        }]
+        buffers: [
+          {
+            arrayStride: 3 * 4,
+            attributes: [
+              {
+                shaderLocation: 0,
+                offset: 0,
+                format: 'float32x3',
+              },
+            ],
+          },
+        ],
       },
       fragment: {
         module: fragmentShaderModule,
         entryPoint: 'fs_main',
-        targets: [{
-          format: 'rgba8unorm',
-          // Additive blending: multiple rays contribute to same pixel
-          blend: {
-            color: {
-              operation: 'add',
-              srcFactor: 'one',
-              dstFactor: 'one',
+        targets: [
+          {
+            format: 'rgba8unorm',
+            // Additive blending: multiple rays contribute to same pixel
+            blend: {
+              color: {
+                operation: 'add',
+                srcFactor: 'one',
+                dstFactor: 'one',
+              },
+              alpha: {
+                operation: 'add',
+                srcFactor: 'one',
+                dstFactor: 'one',
+              },
             },
-            alpha: {
-              operation: 'add',
-              srcFactor: 'one',
-              dstFactor: 'one',
-            }
-          }
-        }]
+          },
+        ],
       },
       primitive: {
         topology: 'triangle-list',
-      }
+      },
     });
   }
 
@@ -694,18 +752,20 @@ export class Water {
         { binding: 1, resource: { buffer: this.sphereUniformBuffer } },
         { binding: 2, resource: this.sampler },
         { binding: 3, resource: this.textureA.createView() },
-        { binding: 4, resource: { buffer: this.shadowUniformBuffer } }
-      ]
+        { binding: 4, resource: { buffer: this.shadowUniformBuffer } },
+      ],
     });
 
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
-      colorAttachments: [{
-        view: this.causticsTexture.createView(),
-        loadOp: 'clear',
-        storeOp: 'store',
-        clearValue: { r: 0, g: 0, b: 0, a: 0 }
-      }]
+      colorAttachments: [
+        {
+          view: this.causticsTexture.createView(),
+          loadOp: 'clear',
+          storeOp: 'store',
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+        },
+      ],
     });
 
     pass.setPipeline(this.causticsPipeline);

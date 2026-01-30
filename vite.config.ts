@@ -5,11 +5,7 @@ export default defineConfig({
   base: '/webgpu-water/',
   plugins: [
     glsl({
-      include: [
-        '**/*.wgsl',
-        '**/*.vert',
-        '**/*.frag',
-      ],
+      include: ['**/*.wgsl', '**/*.vert', '**/*.frag'],
       warnDuplicatedImports: true,
     }),
   ],

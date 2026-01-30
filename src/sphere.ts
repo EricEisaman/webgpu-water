@@ -146,18 +146,16 @@ export class Sphere {
      * - Bit 2: Z sign
      */
     function pickOctant(i: number): [number, number, number] {
-      return [
-        (i & 1) * 2 - 1,
-        (i & 2) - 1,
-        (i & 4) / 2 - 1
-      ];
+      return [(i & 1) * 2 - 1, (i & 2) - 1, (i & 4) / 2 - 1];
     }
 
     /**
      * Applies a smoothing function to make triangles more uniform.
      * Without this, triangles near octant corners would be smaller.
      */
-    function fix(x: number): number { return x + (x - x * x) / 2; }
+    function fix(x: number): number {
+      return x + (x - x * x) / 2;
+    }
 
     const indexer = new Indexer();
     const finalIndices: number[] = [];
@@ -183,11 +181,7 @@ export class Sphere {
 
           // Normalize to project onto unit sphere
           const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-          const pos = [
-            (v[0] / len) * scale[0],
-            (v[1] / len) * scale[1],
-            (v[2] / len) * scale[2]
-          ];
+          const pos = [(v[0] / len) * scale[0], (v[1] / len) * scale[1], (v[2] / len) * scale[2]];
 
           data.push(indexer.add(pos));
         }
@@ -198,7 +192,7 @@ export class Sphere {
         if (i > 0) {
           for (let j = 0; i + j <= detail; j++) {
             // Calculate vertex indices in the triangular grid
-            const a = (i - 1) * (detail + 1) + ((i - 1) - (i - 1) * (i - 1)) / 2 + j;
+            const a = (i - 1) * (detail + 1) + (i - 1 - (i - 1) * (i - 1)) / 2 + j;
             const b = i * (detail + 1) + (i - i * i) / 2 + j;
 
             // Add triangle with correct winding order
@@ -263,12 +257,12 @@ export class Sphere {
     // Create separate shader modules for vertex and fragment stages
     const vertexShaderModule = this.device.createShaderModule({
       label: 'Sphere Vertex Shader',
-      code: sphereVertShader
+      code: sphereVertShader,
     });
 
     const fragmentShaderModule = this.device.createShaderModule({
       label: 'Sphere Fragment Shader',
-      code: sphereFragShader
+      code: sphereFragShader,
     });
 
     // Create the render pipeline
@@ -278,19 +272,23 @@ export class Sphere {
       vertex: {
         module: vertexShaderModule,
         entryPoint: 'vs_main',
-        buffers: [{
-          arrayStride: 3 * 4, // 3 floats per vertex (x, y, z)
-          attributes: [{
-            shaderLocation: 0,
-            offset: 0,
-            format: 'float32x3'
-          }]
-        }]
+        buffers: [
+          {
+            arrayStride: 3 * 4, // 3 floats per vertex (x, y, z)
+            attributes: [
+              {
+                shaderLocation: 0,
+                offset: 0,
+                format: 'float32x3',
+              },
+            ],
+          },
+        ],
       },
       fragment: {
         module: fragmentShaderModule,
         entryPoint: 'fs_main',
-        targets: [{ format: this.format }]
+        targets: [{ format: this.format }],
       },
       primitive: {
         topology: 'triangle-list',
@@ -300,7 +298,7 @@ export class Sphere {
         depthWriteEnabled: true,
         depthCompare: 'less',
         format: 'depth24plus',
-      }
+      },
     });
   }
 
@@ -315,7 +313,12 @@ export class Sphere {
    * @param waterSampler - Sampler for water texture
    * @param causticsTexture - Pre-computed caustic pattern texture
    */
-  render(passEncoder: GPURenderPassEncoder, waterTexture: GPUTexture, waterSampler: GPUSampler, causticsTexture: GPUTexture): void {
+  render(
+    passEncoder: GPURenderPassEncoder,
+    waterTexture: GPUTexture,
+    waterSampler: GPUSampler,
+    causticsTexture: GPUTexture
+  ): void {
     // Create bind group with all required resources
     const bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
@@ -325,8 +328,8 @@ export class Sphere {
         { binding: 2, resource: { buffer: this.lightUniformBuffer } },
         { binding: 3, resource: waterSampler },
         { binding: 4, resource: waterTexture.createView() },
-        { binding: 5, resource: causticsTexture.createView() }
-      ]
+        { binding: 5, resource: causticsTexture.createView() },
+      ],
     });
 
     // Issue draw commands

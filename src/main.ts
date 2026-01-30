@@ -86,7 +86,10 @@ async function init(): Promise<void> {
       label: url,
       size: [source.width, source.height],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
     device.queue.copyExternalImageToTexture(
@@ -113,9 +116,12 @@ async function init(): Promise<void> {
   // Load skybox cubemap for reflections
   const cubemap = new Cubemap(device);
   const skyTexture = await cubemap.load({
-    xpos: `${base}xpos.jpg`, xneg: `${base}xneg.jpg`,
-    ypos: `${base}ypos.jpg`, yneg: `${base}yneg.jpg`,
-    zpos: `${base}zpos.jpg`, zneg: `${base}zneg.jpg`
+    xpos: `${base}xpos.jpg`,
+    xneg: `${base}xneg.jpg`,
+    ypos: `${base}ypos.jpg`,
+    yneg: `${base}yneg.jpg`,
+    zpos: `${base}zpos.jpg`,
+    zneg: `${base}zneg.jpg`,
   });
   const skySampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
 
@@ -136,10 +142,10 @@ async function init(): Promise<void> {
 
     // Build view matrix: translate back, rotate, translate up
     const viewMatrix = mat4.identity();
-    mat4.translate(viewMatrix, [0, 0, -4], viewMatrix);      // Camera distance
-    mat4.rotateX(viewMatrix, -angleX * Math.PI / 180, viewMatrix); // Pitch
-    mat4.rotateY(viewMatrix, -angleY * Math.PI / 180, viewMatrix); // Yaw
-    mat4.translate(viewMatrix, [0, 0.5, 0], viewMatrix);     // Look slightly above center
+    mat4.translate(viewMatrix, [0, 0, -4], viewMatrix); // Camera distance
+    mat4.rotateX(viewMatrix, (-angleX * Math.PI) / 180, viewMatrix); // Pitch
+    mat4.rotateY(viewMatrix, (-angleY * Math.PI) / 180, viewMatrix); // Yaw
+    mat4.translate(viewMatrix, [0, 0.5, 0], viewMatrix); // Look slightly above center
 
     return { projectionMatrix, viewMatrix };
   }
@@ -189,13 +195,34 @@ async function init(): Promise<void> {
   // --- Scene Objects ---
 
   // Create pool (walls and floor)
-  const pool = new Pool(device, format, uniformBuffer, tileTexture, tileSampler, lightUniformBuffer, sphereUniformBuffer, shadowUniformBuffer);
+  const pool = new Pool(
+    device,
+    format,
+    uniformBuffer,
+    tileTexture,
+    tileSampler,
+    lightUniformBuffer,
+    sphereUniformBuffer,
+    shadowUniformBuffer
+  );
 
   // Create interactive sphere
   const sphere = new Sphere(device, format, uniformBuffer, lightUniformBuffer, sphereUniformBuffer);
 
   // Create water simulation (256x256 resolution)
-  const water = new Water(device, 256, 256, uniformBuffer, lightUniformBuffer, sphereUniformBuffer, shadowUniformBuffer, tileTexture, tileSampler, skyTexture, skySampler);
+  const water = new Water(
+    device,
+    256,
+    256,
+    uniformBuffer,
+    lightUniformBuffer,
+    sphereUniformBuffer,
+    shadowUniformBuffer,
+    tileTexture,
+    tileSampler,
+    skyTexture,
+    skySampler
+  );
 
   // --- Sphere Physics State ---
 
@@ -217,32 +244,45 @@ async function init(): Promise<void> {
   // --- GUI ---
   const gui = new GUI({ title: 'Settings' });
   gui.close(); // Collapse by default
-  
+
   const settings = {
     gravity: useSpherePhysics,
     followCamera: false,
-    showSphere: true
+    showSphere: true,
   };
 
-  gui.add(settings, 'showSphere').name('Render Sphere').onChange((v: boolean) => {
-    // Update shadow flags when sphere visibility changes: rim=1, sphere=v, ao=1
-    device.queue.writeBuffer(shadowUniformBuffer, 0, new Float32Array([1.0, v ? 1.0 : 0.0, 1.0, 0.0]));
-    (document.activeElement as HTMLElement)?.blur();
-  });
-  const gravityController = gui.add(settings, 'gravity').name('Toggle Gravity').onChange((v: boolean) => {
-    useSpherePhysics = v;
-    (document.activeElement as HTMLElement)?.blur();
-  });
-  gui.add(settings, 'followCamera').name('Light From Camera').onChange(() => {
-    (document.activeElement as HTMLElement)?.blur();
-  });
+  gui
+    .add(settings, 'showSphere')
+    .name('Render Sphere')
+    .onChange((v: boolean) => {
+      // Update shadow flags when sphere visibility changes: rim=1, sphere=v, ao=1
+      device.queue.writeBuffer(
+        shadowUniformBuffer,
+        0,
+        new Float32Array([1.0, v ? 1.0 : 0.0, 1.0, 0.0])
+      );
+      (document.activeElement as HTMLElement)?.blur();
+    });
+  const gravityController = gui
+    .add(settings, 'gravity')
+    .name('Toggle Gravity')
+    .onChange((v: boolean) => {
+      useSpherePhysics = v;
+      (document.activeElement as HTMLElement)?.blur();
+    });
+  gui
+    .add(settings, 'followCamera')
+    .name('Light From Camera')
+    .onChange(() => {
+      (document.activeElement as HTMLElement)?.blur();
+    });
 
   // Initialize sphere position
   sphere.update(center.toArray(), radius);
 
   // Add initial random ripples
   for (let i = 0; i < 20; i++) {
-    water.addDrop(Math.random() * 2 - 1, Math.random() * 2 - 1, 0.03, (i & 1) ? 0.01 : -0.01);
+    water.addDrop(Math.random() * 2 - 1, Math.random() * 2 - 1, 0.03, i & 1 ? 0.01 : -0.01);
   }
 
   // --- Keyboard Input ---
@@ -257,8 +297,7 @@ async function init(): Promise<void> {
       useSpherePhysics = !useSpherePhysics; // Toggle gravity
       settings.gravity = useSpherePhysics;
       gravityController.updateDisplay();
-    }
-    else if (key === ' ') paused = !paused;                // Toggle pause
+    } else if (key === ' ') paused = !paused; // Toggle pause
   });
 
   window.addEventListener('keyup', (e) => {
@@ -298,7 +337,9 @@ async function init(): Promise<void> {
     const ray = tracer.getRayForPixel(x * ratio, y * ratio);
 
     // Check if clicking on sphere (only if visible)
-    const sphereHit = settings.showSphere ? Raytracer.hitTestSphere(tracer.eye, ray, center, radius) : null;
+    const sphereHit = settings.showSphere
+      ? Raytracer.hitTestSphere(tracer.eye, ray, center, radius)
+      : null;
     if (sphereHit) {
       mode = InteractionMode.MoveSphere;
       prevHit = sphereHit.hit;
@@ -480,7 +521,7 @@ async function init(): Promise<void> {
 
     // Update light direction if L key is held or Follow Camera is enabled
     if (keys['L'] || settings.followCamera) {
-      lightDir = Vector.fromAngles((90 - angleY) * Math.PI / 180, -angleX * Math.PI / 180);
+      lightDir = Vector.fromAngles(((90 - angleY) * Math.PI) / 180, (-angleX * Math.PI) / 180);
       updateLight();
     }
 
@@ -497,7 +538,9 @@ async function init(): Promise<void> {
         // Gravity reduced by buoyancy when underwater
         velocity = velocity.add(gravity.multiply(seconds - 1.1 * seconds * percentUnderWater));
         // Water drag proportional to velocity squared
-        velocity = velocity.subtract(velocity.unit().multiply(percentUnderWater * seconds * velocity.dot(velocity)));
+        velocity = velocity.subtract(
+          velocity.unit().multiply(percentUnderWater * seconds * velocity.dot(velocity))
+        );
         center = center.add(velocity.multiply(seconds));
 
         // Floor collision
@@ -529,18 +572,20 @@ async function init(): Promise<void> {
 
     const commandEncoder = device.createCommandEncoder();
     const passEncoder = commandEncoder.beginRenderPass({
-      colorAttachments: [{
-        view: context.getCurrentTexture().createView(),
-        clearValue: { r: 0, g: 0, b: 0, a: 1 },
-        loadOp: 'clear',
-        storeOp: 'store',
-      }],
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
       depthStencilAttachment: {
         view: depthTexture.createView(),
         depthClearValue: 1.0,
         depthLoadOp: 'clear',
         depthStoreOp: 'store',
-      }
+      },
     });
 
     // Render scene objects

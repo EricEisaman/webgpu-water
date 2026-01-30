@@ -122,11 +122,7 @@ export class Pool {
      * - Bit 2: Z axis (0 = -1, 1 = +1)
      */
     function pickOctant(i: number): [number, number, number] {
-      return [
-        (i & 1) * 2 - 1,
-        (i & 2) - 1,
-        (i & 4) / 2 - 1
-      ];
+      return [(i & 1) * 2 - 1, (i & 2) - 1, (i & 4) / 2 - 1];
     }
 
     // Cube face definitions: [v0, v1, v2, v3, nx, ny, nz]
@@ -138,7 +134,7 @@ export class Pool {
       // [0, 1, 4, 5, 0, -1, 0], // -y (removed - this would be the open top)
       [2, 6, 3, 7, 0, +1, 0], // +y (floor)
       [0, 2, 1, 3, 0, 0, -1], // -z (front wall)
-      [4, 5, 6, 7, 0, 0, +1]  // +z (back wall)
+      [4, 5, 6, 7, 0, 0, +1], // +z (back wall)
     ];
 
     const positions: number[] = [];
@@ -202,12 +198,12 @@ export class Pool {
     // Create separate shader modules for vertex and fragment stages
     const vertexShaderModule = this.device.createShaderModule({
       label: 'Pool Vertex Shader',
-      code: poolVertShader
+      code: poolVertShader,
     });
 
     const fragmentShaderModule = this.device.createShaderModule({
       label: 'Pool Fragment Shader',
-      code: poolFragShader
+      code: poolFragShader,
     });
 
     // Create the render pipeline
@@ -217,19 +213,23 @@ export class Pool {
       vertex: {
         module: vertexShaderModule,
         entryPoint: 'vs_main',
-        buffers: [{
-          arrayStride: 3 * 4, // 3 floats per vertex (x, y, z)
-          attributes: [{
-            shaderLocation: 0,
-            offset: 0,
-            format: 'float32x3'
-          }]
-        }]
+        buffers: [
+          {
+            arrayStride: 3 * 4, // 3 floats per vertex (x, y, z)
+            attributes: [
+              {
+                shaderLocation: 0,
+                offset: 0,
+                format: 'float32x3',
+              },
+            ],
+          },
+        ],
       },
       fragment: {
         module: fragmentShaderModule,
         entryPoint: 'fs_main',
-        targets: [{ format: this.format }]
+        targets: [{ format: this.format }],
       },
       primitive: {
         topology: 'triangle-list',
@@ -239,7 +239,7 @@ export class Pool {
         depthWriteEnabled: true,
         depthCompare: 'less',
         format: 'depth24plus',
-      }
+      },
     });
   }
 
@@ -254,7 +254,12 @@ export class Pool {
    * @param waterSampler - Sampler for water texture
    * @param causticsTexture - Pre-computed caustic pattern texture
    */
-  render(passEncoder: GPURenderPassEncoder, waterTexture: GPUTexture, waterSampler: GPUSampler, causticsTexture: GPUTexture): void {
+  render(
+    passEncoder: GPURenderPassEncoder,
+    waterTexture: GPUTexture,
+    waterSampler: GPUSampler,
+    causticsTexture: GPUTexture
+  ): void {
     // Create bind group with all required resources
     const bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
@@ -267,8 +272,8 @@ export class Pool {
         { binding: 5, resource: waterSampler },
         { binding: 6, resource: waterTexture.createView() },
         { binding: 7, resource: causticsTexture.createView() },
-        { binding: 8, resource: { buffer: this.shadowUniformBuffer } }
-      ]
+        { binding: 8, resource: { buffer: this.shadowUniformBuffer } },
+      ],
     });
 
     // Issue draw commands

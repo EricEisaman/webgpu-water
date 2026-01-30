@@ -266,7 +266,12 @@ export class Raytracer {
    * @param radius - Sphere radius
    * @returns HitTest result if intersection found, null otherwise
    */
-  static hitTestSphere(origin: Vector, ray: Vector, center: Vector, radius: number): HitTest | null {
+  static hitTestSphere(
+    origin: Vector,
+    ray: Vector,
+    center: Vector,
+    radius: number
+  ): HitTest | null {
     // Solve: |origin + t*ray - center|^2 = radius^2
     // Expanding: at^2 + bt + c = 0
     const offset = origin.subtract(center);
