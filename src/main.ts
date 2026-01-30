@@ -227,9 +227,11 @@ async function init(): Promise<void> {
   gui.add(settings, 'showSphere').name('Render Sphere').onChange((v: boolean) => {
     // Update shadow flags when sphere visibility changes: rim=1, sphere=v, ao=1
     device.queue.writeBuffer(shadowUniformBuffer, 0, new Float32Array([1.0, v ? 1.0 : 0.0, 1.0, 0.0]));
+    (document.activeElement as HTMLElement)?.blur();
   });
   const gravityController = gui.add(settings, 'gravity').name('Toggle Gravity').onChange((v: boolean) => {
     useSpherePhysics = v;
+    (document.activeElement as HTMLElement)?.blur();
   });
   gui.add(settings, 'followCamera').name('Light From Camera').onChange(() => {
     (document.activeElement as HTMLElement)?.blur();
