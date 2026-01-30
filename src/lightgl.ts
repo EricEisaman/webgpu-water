@@ -94,19 +94,6 @@ export class Vector {
   }
 
   /**
-   * Computes the cross product of this vector with another.
-   * The result is perpendicular to both input vectors.
-   * @param v - The other vector
-   */
-  cross(v: Vector): Vector {
-    return new Vector(
-      this.y * v.z - this.z * v.y,
-      this.z * v.x - this.x * v.z,
-      this.x * v.y - this.y * v.x
-    );
-  }
-
-  /**
    * Returns the length (magnitude) of this vector.
    */
   length(): number {
@@ -118,20 +105,6 @@ export class Vector {
    */
   unit(): Vector {
     return this.divide(this.length());
-  }
-
-  /**
-   * Returns the minimum component value.
-   */
-  min(): number {
-    return Math.min(this.x, this.y, this.z);
-  }
-
-  /**
-   * Returns the maximum component value.
-   */
-  max(): number {
-    return Math.max(this.x, this.y, this.z);
   }
 
   /**
@@ -169,20 +142,6 @@ export class Vector {
    */
   static lerp(a: Vector, b: Vector, t: number): Vector {
     return a.add(b.subtract(a).multiply(t));
-  }
-
-  /**
-   * Returns a vector with the minimum components from two vectors.
-   */
-  static min(a: Vector, b: Vector): Vector {
-    return new Vector(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z));
-  }
-
-  /**
-   * Returns a vector with the maximum components from two vectors.
-   */
-  static max(a: Vector, b: Vector): Vector {
-    return new Vector(Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z));
   }
 }
 
